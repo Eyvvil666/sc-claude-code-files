@@ -148,39 +148,43 @@ status_filter = 'delivered'  # or 'shipped', 'processing', etc.
 
 #### Data Loading Module
 ```python
-from data_loader import EcommerceDataLoader, load_and_process_data
+from data_loader import load_datasets, prepare_sales_data, add_temporal_features, filter_by_period, calculate_delivery_speed
 
-# Quick start
-loader, processed_data = load_and_process_data('ecommerce_data/')
+# Load all datasets
+datasets = load_datasets('ecommerce_data')
 
-# Advanced usage
-loader = EcommerceDataLoader('ecommerce_data/')
-loader.load_raw_data()
-processed_data = loader.process_all_data()
+# Build and enrich the sales DataFrame
+sales_df = prepare_sales_data(datasets['order_items'], datasets['orders'])
+sales_df = add_temporal_features(sales_df, 'order_purchase_timestamp')
 
-# Create filtered dataset
-sales_data = loader.create_sales_dataset(
-    year_filter=2023,
-    month_filter=None,
-    status_filter='delivered'
-)
+# Filter to delivered orders for a specific year (or year + month)
+delivered = sales_df[sales_df['order_status'] == 'delivered'].copy()
+current_df = calculate_delivery_speed(filter_by_period(delivered, 2023))
+current_df_june = calculate_delivery_speed(filter_by_period(delivered, 2023, month=6))
 ```
 
 #### Business Metrics Module
 ```python
-from business_metrics import BusinessMetricsCalculator, MetricsVisualizer
-
-# Calculate metrics
-metrics_calc = BusinessMetricsCalculator(sales_data)
-report = metrics_calc.generate_comprehensive_report(
-    current_year=2023,
-    previous_year=2022
+from business_metrics import (
+    calculate_revenue, calculate_avg_order_value, calculate_order_count,
+    calculate_mom_growth, calculate_category_revenue,
+    calculate_state_revenue, calculate_delivery_satisfaction,
 )
 
-# Create visualizations
-visualizer = MetricsVisualizer(report)
-revenue_fig = visualizer.plot_revenue_trend()
-category_fig = visualizer.plot_category_performance()
+# Revenue KPIs
+revenue = calculate_revenue(current_df)
+aov     = calculate_avg_order_value(current_df)
+orders  = calculate_order_count(current_df)
+
+# Month-over-month growth series
+mom_growth = calculate_mom_growth(current_df)
+
+# Category and geographic breakdowns
+cat_rev   = calculate_category_revenue(current_df, datasets['products'])
+state_rev = calculate_state_revenue(current_df, datasets['orders'], datasets['customers'])
+
+# Delivery satisfaction analysis
+sat_df = calculate_delivery_satisfaction(current_df, datasets['reviews'])
 ```
 
 ## Key Business Metrics
@@ -237,9 +241,9 @@ DELIVERY PERFORMANCE:
 ## Customization Options
 
 ### Adding New Metrics
-1. Extend the `BusinessMetricsCalculator` class in `business_metrics.py`
-2. Add visualization methods to `MetricsVisualizer` class
-3. Update the notebook to display new metrics
+1. Add a standalone function to `business_metrics.py` following the pattern `calculate_<metric>(df, ...) -> value`
+2. Import the function in `dashboard.py` or the notebook and call it with the appropriate filtered DataFrame
+3. Render the result in the desired KPI card or chart section
 
 ### Custom Visualizations
 ```python
